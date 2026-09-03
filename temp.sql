@@ -1,6 +1,7 @@
 CREATE TABLE IF NOT EXISTS attributes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(64) UNIQUE NOT NULL
+    name VARCHAR(64) UNIQUE NOT NULL,
+    type VARCHAR(20) NOT NULL DEFAULT 'STRING' -- "NUMBER", "BOOLEAN", "STRING"
 );
 
 CREATE TABLE IF NOT EXISTS sensor_data (
@@ -8,7 +9,7 @@ CREATE TABLE IF NOT EXISTS sensor_data (
     device_id UUID NOT NULL,
     attribute_id UUID NOT NULL REFERENCES attributes(id),
     val_num DOUBLE PRECISION,
-    val_string VARCHAR(255),
+    val_string VARCHAR(64),
     val_boolean BOOLEAN,
     PRIMARY KEY (timestamp, device_id, attribute_id)
 );
