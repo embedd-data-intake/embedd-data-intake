@@ -1,0 +1,89 @@
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: timescaledb
+    environment:
+      POSTGRES_DB: telemetry_db
+      POSTGRES_USER: ts_user
+      POSTGRES_PASSWORD: ts_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+      - ./temp.sql:/docker-entrypoint-initdb.d/01-init.sql # TODO: Remove when adding MQTT Consumer
+    networks:
+      - iot-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ts_user -d telemetry_db"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+
+  postgres-primary:
+    image: postgres:16-alpine
+    container_name: postgres-primary
+    environment:
+      POSTGRES_DB: app_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: primary_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - primary_data:/var/lib/postgresql/data
+    networks:
+      - iot-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d app_db"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+
+#  mqtt-broker:
+#    image: eclipse-mosquitto:2.0
+#    container_name: mqtt-broker
+#    ports:
+#      - "1883:1883"
+#    command: mosquitto -c /mosquitto-no-auth.conf
+
+#  iot-ingestion-service:
+#    build: ./iot-ingestion-service
+#    container_name: iot-ingestion-service
+#    depends_on:
+#      timescaledb:
+#        condition: service_healthy
+#      mqtt-broker:
+#        condition: service_started
+
+  iot-api-service:
+    build: ./server
+    container_name: iot-api-service
+    environment:
+      PRIMARY_DB_HOST: postgres-primary
+      PRIMARY_DB_PORT: 5432
+      PRIMARY_DB_NAME: app_db
+      PRIMARY_DB_USER: postgres
+      PRIMARY_DB_PASSWORD: primary_password
+      TIMESCALE_HOST: timescaledb
+      TIMESCALE_PORT: 5433
+      TIMESCALE_DB: telemetry_db
+      TIMESCALE_USER: ts_user
+      TIMESCALE_PASSWORD: ts_password
+    ports:
+      - "8080:8080"
+    networks:
+      - iot-network
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+#      iot-ingestion-service:
+#        condition: service_started # Guarantees TimescaleDB schema is migrated before FDW creation
+
+networks:
+  iot-network:
+    driver: bridge
+
+volumes:
+  primary_data:
+  timescale_data:
